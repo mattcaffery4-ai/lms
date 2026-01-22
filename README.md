@@ -1,5 +1,5 @@
 
-# Last Man Standing (Swimlanes Edition)
+# Last Man Standing
 
 Static web app to run a monthly LMS with **swimlanes per round** showing Alive / Pending / Out players. No server required. Data is stored in the browser (localStorage). Host it free on GitHub Pages.
 
@@ -27,7 +27,3 @@ Static web app to run a monthly LMS with **swimlanes per round** showing Alive /
 - Admin password is client-only and just gates editing (not security). Use Export/Import to share state between devices.
 - You can set per-round **labels** (e.g., `GW1 (Jan 3–5)`) and **deadlines**.
 - Entry fee is per-month; pot = entrants × fee.
-
-## Back up / move data
-- **Export JSON** from the header to backup; import on another device to continue.
-- **Export CSV** for the current month to analyse or archive.
