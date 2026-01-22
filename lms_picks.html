@@ -1,0 +1,613 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Last Man Standing – Swimlanes</title>
+  <style>
+    :root{
+      --bg:#0f172a; --panel:#111827; --card:#1f2937; --muted:#94a3b8; --text:#e5e7eb;
+      --accent:#22c55e; --accent-2:#3b82f6; --warn:#f59e0b; --danger:#ef4444; --chip:#0b1220; --border:#334155;
+    }
+    html, body{height:100%}
+    body{margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:linear-gradient(180deg,var(--bg),#030712 60%); color:var(--text);}    
+    .container{ max-width:1400px; margin:0 auto; padding:20px; }
+    header{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:12px; }
+    h1{ font-size: clamp(20px, 3vw, 28px); margin:0; }
+    .badge{ padding:4px 10px; border:1px solid var(--border); border-radius:999px; background:var(--chip); color:var(--muted); font-size:12px }
+    input, select, button{ background:#0b1220; border:1px solid var(--border); color:var(--text); border-radius:10px; padding:8px 10px; font-size:14px }
+    button{ cursor:pointer }
+    button.primary{ background: linear-gradient(90deg, var(--accent), #16a34a); border: none; color:#052e16; font-weight:700 }
+    button.secondary{ background: linear-gradient(90deg, var(--accent-2), #2563eb); border: none; color:#06142a; font-weight:700 }
+    button.ghost{ background: transparent; border:1px solid var(--border) }
+    .muted{ color:var(--muted) }
+
+    .bar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+    .panel{ background:linear-gradient(180deg, var(--card), #111827); border:1px solid var(--border); border-radius:14px; padding:12px; }
+
+    .grid{ display:grid; grid-template-columns: 1.2fr 1fr; gap:12px; }
+    @media (max-width: 1100px){ .grid{ grid-template-columns: 1fr; } }
+
+    /* Swimlane board */
+    .board{ background:linear-gradient(180deg, var(--panel), #0b1220); border:1px solid var(--border); border-radius:14px; margin-top:12px; padding:10px; overflow-x:auto }
+    .lanes{ display:grid; grid-auto-flow: column; grid-auto-columns: minmax(280px, 1fr); gap:10px; }
+    .lane{ background:linear-gradient(180deg,#1f2937,#111827); border:1px solid var(--border); border-radius:14px; padding:10px; min-height:260px; display:flex; flex-direction:column }
+    .lane header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px }
+    .lane h3{ margin:0; font-size:16px }
+    .lane .deadline{ font-size:12px; color:var(--muted) }
+    .section{ margin-top:6px }
+    .section h4{ margin:0 0 4px; font-size:12px; color:var(--muted) }
+    .list{ display:flex; flex-wrap:wrap; gap:6px; }
+
+    .chip{ display:inline-flex; gap:6px; align-items:center; font-size:12px; padding:6px 8px; border-radius:10px; border:1px solid var(--border); background:var(--chip); color:var(--muted) }
+    .chip .name{ color:var(--text); font-weight:600 }
+    .chip .team{ color:#93c5fd }
+    .chip.win{ background:linear-gradient(90deg,#bbf7d0,#86efac); color:#052e16; border:none }
+    .chip.lose{ background:linear-gradient(90deg,#fecaca,#fca5a5); color:#450a0a; border:none }
+    .chip.pending{ background:linear-gradient(90deg,#bae6fd,#93c5fd); color:#082f49; border:none }
+
+    table{ width:100%; border-collapse: collapse; }
+    th, td{ padding:8px; border-bottom:1px solid var(--border); text-align:left; font-size:14px }
+    th{ color:var(--muted); font-weight:600 }
+
+    .hidden{ display:none !important }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div style="display:flex; align-items:center; gap:10px">
+        <h1>LMS – Swimlanes</h1>
+        <span class="badge">LocalStorage · Client‑side</span>
+      </div>
+      <div class="bar">
+        <button id="exportBtn" class="ghost">Export JSON</button>
+        <button id="exportCsvBtn" class="ghost">Export CSV (current month)</button>
+        <label class="ghost" for="importFile" style="display:flex;align-items:center;gap:8px;cursor:pointer">Import JSON<input id="importFile" type="file" accept="application/json" style="display:none"/></label>
+        <button id="printBtn" class="ghost">Print / PDF</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="panel">
+        <div class="bar" style="justify-content:space-between">
+          <div class="bar">
+            <label class="muted">Month</label>
+            <select id="monthInput"></select>
+            <span class="muted">Round</span>
+            <input id="roundInput" type="number" min="1" value="1" style="width:80px" />
+            <span class="muted">Player</span>
+            <input id="playerInput" placeholder="e.g. Sarah" style="width:160px"/>
+          </div>
+          <div class="bar">
+            <span class="muted">Team</span>
+            <input id="teamInput" list="teamList" placeholder="Type team…" style="width:190px"/>
+            <datalist id="teamList"></datalist>
+            <button id="addPickBtn" class="primary">Add Pick</button>
+          </div>
+        </div>
+        <div class="bar" style="margin-top:8px">
+          <span class="muted">League</span>
+          <select id="leagueInput"></select>
+          <span class="muted">Fixture</span>
+          <input id="fixtureInput" type="datetime-local" />
+          <input id="notesInput" placeholder="Notes (optional)" style="flex:1; min-width:220px"/>
+        </div>
+        <hr style="border-color:var(--border); margin:10px 0"/>
+        <div class="bar" style="justify-content:space-between">
+          <div class="bar">
+            <strong>Admin</strong>
+            <input id="adminPass" type="password" placeholder="Admin pass" style="width:160px"/>
+            <button id="adminToggle" class="secondary">Unlock</button>
+            <span id="adminStatus" class="badge">Locked</span>
+          </div>
+          <div class="bar">
+            <button id="advanceRoundBtn" class="ghost" disabled>Advance Round</button>
+            <button id="createNextRoundBtn" class="ghost" disabled>Create Next Round</button>
+            <button id="closeMonthBtn" class="ghost" disabled>Close Month</button>
+          </div>
+        </div>
+        <div class="bar" style="margin-top:8px; gap:14px">
+          <div>
+            <label class="muted">Current round label</label><br/>
+            <input id="roundLabelInput" placeholder="e.g. GW1 (Jan 3–5)" style="width:260px"/>
+          </div>
+          <div>
+            <label class="muted">Current round deadline</label><br/>
+            <input id="deadlineInput" type="datetime-local" style="width:220px"/>
+          </div>
+          <div>
+            <label class="muted">Entry fee (£)</label><br/>
+            <input id="entryFeeInput" type="number" min="0" step="0.01" style="width:120px"/>
+          </div>
+          <div>
+            <label class="muted">Settings</label><br/>
+            <select id="settingsSelect" style="width:240px">
+              <option value="drawOut">Draw = Out</option>
+              <option value="drawAlive">Draw = Replay</option>
+              <option value="noRepeatOn">No repeat teams</option>
+              <option value="noRepeatOff">Allow repeats</option>
+            </select>
+          </div>
+          <div style="align-self:flex-end">
+            <button id="applySettingsBtn" class="ghost">Apply</button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel">
+        <div class="bar" style="justify-content:space-between">
+          <strong>Overview</strong>
+          <div class="bar">
+            <button id="addMonthBtn" class="ghost">+ Month</button>
+            <button id="deleteMonthBtn" class="ghost" title="Delete month">Delete</button>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:8px">
+          <div class="panel" style="padding:10px"><div class="muted">Month</div><div id="kMonth" style="font-size:20px">–</div></div>
+          <div class="panel" style="padding:10px"><div class="muted">Round</div><div id="kRound" style="font-size:20px">1</div></div>
+          <div class="panel" style="padding:10px"><div class="muted">Entrants</div><div id="kEntrants" style="font-size:20px">0</div></div>
+          <div class="panel" style="padding:10px"><div class="muted">Alive</div><div id="kAlive" style="font-size:20px">0</div></div>
+          <div class="panel" style="padding:10px"><div class="muted">Pot</div><div id="kPot" style="font-size:20px">£0</div></div>
+          <div class="panel" style="padding:10px"><div class="muted">Draw rule</div><div id="kDrawRule" style="font-size:20px">Out</div></div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="board">
+      <div id="lanes" class="lanes"></div>
+    </div>
+
+    <section class="panel" style="margin-top:12px">
+      <div class="bar" style="justify-content:space-between">
+        <strong>Picks (table)</strong>
+        <span class="muted">Use this for quick edits and result updates</span>
+      </div>
+      <div style="overflow:auto; max-height:45vh">
+        <table>
+          <thead>
+            <tr>
+              <th>Player</th><th>Month</th><th>Round</th><th>Team</th><th>League</th><th>Fixture</th><th>Notes</th><th>Status</th><th class="adminCol hidden">Result</th><th class="adminCol hidden">Delete</th>
+            </tr>
+          </thead>
+          <tbody id="picksBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'lms_state_swimlanes_v1';
+    const defaultEntryFee = 10;
+
+    function uid(){ return Math.random().toString(36).slice(2)+Date.now().toString(36) }
+    function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); renderAll(); }
+    function loadState(){
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw){
+        const now = new Date();
+        const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+        return {
+          admin:{ passHash:null, unlocked:false },
+          months:[ym],
+          configByMonth:{ [ym]: cfgTemplate() },
+          picks:[]
+        };
+      }
+      try{ return JSON.parse(raw) }catch(e){ console.error(e); return { admin:{passHash:null,unlocked:false}, months:[], configByMonth:{}, picks:[] } }
+    }
+
+    function cfgTemplate(){
+      return { drawOut:true, noRepeat:false, entryFee:defaultEntryFee, currentRound:1, closed:false, winner:null, rounds:{ 1:{ label:'GW1', deadlineISO:null } } };
+    }
+
+    let state = loadState();
+
+    async function hash(text){
+      const enc = new TextEncoder().encode(text);
+      const buf = await crypto.subtle.digest('SHA-256', enc);
+      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+
+    const $ = sel => document.querySelector(sel);
+    const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+    const monthInput = $('#monthInput');
+    const roundInput = $('#roundInput');
+    const playerInput = $('#playerInput');
+    const teamInput = $('#teamInput');
+    const leagueInput = $('#leagueInput');
+    const fixtureInput = $('#fixtureInput');
+    const notesInput = $('#notesInput');
+    const addPickBtn = $('#addPickBtn');
+
+    const adminPass = $('#adminPass');
+    const adminToggle = $('#adminToggle');
+    const adminStatus = $('#adminStatus');
+    const advanceRoundBtn = $('#advanceRoundBtn');
+    const createNextRoundBtn = $('#createNextRoundBtn');
+    const closeMonthBtn = $('#closeMonthBtn');
+
+    const roundLabelInput = $('#roundLabelInput');
+    const deadlineInput = $('#deadlineInput');
+    const entryFeeInput = $('#entryFeeInput');
+    const settingsSelect = $('#settingsSelect');
+    const applySettingsBtn = $('#applySettingsBtn');
+
+    const kMonth = $('#kMonth');
+    const kRound = $('#kRound');
+    const kEntrants = $('#kEntrants');
+    const kAlive = $('#kAlive');
+    const kPot = $('#kPot');
+    const kDrawRule = $('#kDrawRule');
+
+    const picksBody = $('#picksBody');
+    const lanesEl = $('#lanes');
+
+    const leagues = ['Premier League','La Liga','Bundesliga','Serie A','Ligue 1','Other'];
+    leagues.forEach(l=>{
+      const opt = document.createElement('option'); opt.value = l; opt.textContent = l; leagueInput.appendChild(opt);
+    });
+
+    const teams = {
+      'Premier League': ['Arsenal','Aston Villa','Bournemouth','Brentford','Brighton','Burnley','Chelsea','Crystal Palace','Everton','Fulham','Liverpool','Luton Town','Manchester City','Manchester United','Newcastle United','Nottingham Forest','Sheffield United','Tottenham Hotspur','West Ham United','Wolverhampton Wanderers'],
+      'La Liga': ['Alavés','Athletic Club','Atlético Madrid','Barcelona','Celta Vigo','Getafe','Girona','Granada','Las Palmas','Mallorca','Osasuna','Rayo Vallecano','Real Betis','Real Madrid','Real Sociedad','Sevilla','Valencia','Villarreal'],
+      'Bundesliga': ['Augsburg','Bayer Leverkusen','Bayern Munich','Bochum','Borussia Dortmund','Borussia Mönchengladbach','Darmstadt','Eintracht Frankfurt','Freiburg','Heidenheim','Hoffenheim','Köln','Mainz','RB Leipzig','Union Berlin','Werder Bremen','Wolfsburg','Stuttgart'],
+      'Serie A': ['Atalanta','Bologna','Cagliari','Empoli','Fiorentina','Frosinone','Genoa','Hellas Verona','Inter','Juventus','Lazio','Lecce','Milan','Monza','Napoli','Roma','Salernitana','Sassuolo','Torino','Udinese'],
+      'Ligue 1': ['Brest','Clermont','Havre AC','Lens','Lille','Lorient','Lyon','Marseille','Metz','Monaco','Montpellier','Nantes','Nice','Paris Saint-Germain','Reims','Rennes','Strasbourg','Toulouse']
+    };
+
+    const teamList = $('#teamList');
+    function rebuildTeamList(){
+      teamList.innerHTML = '';
+      Object.keys(teams).forEach(league=>{
+        teams[league].forEach(t=>{
+          const opt = document.createElement('option'); opt.value = t; opt.label = `${t} (${league})`; teamList.appendChild(opt);
+        });
+      })
+    }
+    rebuildTeamList();
+
+    function monthLabel(m){ const [y,mo] = m.split('-'); const d = new Date(Number(y), Number(mo)-1, 1); return d.toLocaleString(undefined,{month:'long', year:'numeric'}); }
+
+    function currentConfig(){ return state.configByMonth[monthInput.value]; }
+
+    function entrantsForMonth(m){ const names = new Set(state.picks.filter(p=>p.month===m && p.round===1).map(p=>p.player)); return names.size; }
+    function potForMonth(m){ const cfg = state.configByMonth[m]; return entrantsForMonth(m) * (cfg?.entryFee ?? defaultEntryFee); }
+
+    function refreshMonthInput(){
+      monthInput.innerHTML = '';
+      state.months.forEach(m=>{
+        const opt = document.createElement('option'); opt.value = m; opt.textContent = monthLabel(m) + (state.configByMonth[m]?.closed? ' (closed)':''); monthInput.appendChild(opt);
+      })
+      if(!monthInput.value && state.months.length) monthInput.value = state.months[0];
+      syncAdminControls();
+      syncSettingsUi();
+      renderAll();
+    }
+
+    function addMonth(){
+      const suggested = (()=>{ const now=new Date(); const ym=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`; return ym; })();
+      const name = prompt('Enter new month (YYYY-MM)', suggested);
+      if(!name) return;
+      if(!/^\d{4}-\d{2}$/.test(name)){ alert('Invalid format'); return; }
+      if(state.months.includes(name)){ alert('Month exists'); return; }
+      state.months.push(name);
+      state.configByMonth[name] = cfgTemplate();
+      saveState();
+      monthInput.value = name;
+    }
+
+    function deleteMonth(){
+      const m = monthInput.value; if(!m) return;
+      if(!confirm(`Delete ${monthLabel(m)} and all picks?`)) return;
+      state.picks = state.picks.filter(p=>p.month!==m);
+      delete state.configByMonth[m];
+      state.months = state.months.filter(x=>x!==m);
+      if(state.months.length===0){ const now=new Date(); const ym=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`; state.months=[ym]; state.configByMonth[ym]=cfgTemplate(); }
+      saveState();
+    }
+
+    function syncAdminControls(){
+      const unlocked = !!state.admin.unlocked;
+      adminStatus.textContent = unlocked? 'Unlocked' : 'Locked';
+      adminStatus.className = 'badge';
+      if(unlocked){ adminStatus.style.background='#022c22'; adminStatus.style.color='#bbf7d0'; }
+      advanceRoundBtn.disabled = !unlocked;
+      createNextRoundBtn.disabled = !unlocked;
+      closeMonthBtn.disabled = !unlocked;
+      $$('.adminCol').forEach(el=> el.classList.toggle('hidden', !unlocked));
+    }
+
+    adminToggle.addEventListener('click', async ()=>{
+      if(state.admin.unlocked){ state.admin.unlocked=false; saveState(); return; }
+      const pass = adminPass.value; if(!pass){ alert('Enter a password'); return; }
+      const h = await hash(pass);
+      if(!state.admin.passHash){ state.admin.passHash = h; state.admin.unlocked = true; saveState(); return; }
+      if(state.admin.passHash === h){ state.admin.unlocked = true; saveState(); } else { alert('Wrong password'); }
+    });
+
+    function syncSettingsUi(){
+      const cfg = currentConfig(); if(!cfg) return;
+      // month & round
+      kMonth.textContent = monthLabel(monthInput.value);
+      kRound.textContent = String(cfg.currentRound);
+      entryFeeInput.value = (cfg.entryFee??defaultEntryFee).toFixed(2);
+      kDrawRule.textContent = cfg.drawOut? 'Out':'Replay';
+      // label & deadline for current round
+      const r = cfg.rounds[cfg.currentRound] || (cfg.rounds[cfg.currentRound] = {label:`GW${cfg.currentRound}`, deadlineISO:null});
+      roundLabelInput.value = r.label || '';
+      deadlineInput.value = r.deadlineISO? new Date(r.deadlineISO).toISOString().slice(0,16): '';
+      // KPIs
+      kEntrants.textContent = entrantsForMonth(monthInput.value);
+      kPot.textContent = '£'+ potForMonth(monthInput.value).toFixed(2);
+      kAlive.textContent = countAlive(monthInput.value);
+    }
+
+    function countAlive(m){
+      const cfg = state.configByMonth[m]; if(!cfg) return 0;
+      // Alive are players who have not been eliminated in any completed round up to current
+      const entrants = Array.from(new Set(state.picks.filter(p=>p.month===m && p.round===1).map(p=>p.player)));
+      let alive = new Set(entrants);
+      for(let r=1; r<=cfg.currentRound; r++){
+        const picks = state.picks.filter(p=>p.month===m && p.round===r);
+        const byPlayer = new Map(); picks.forEach(p=>{ byPlayer.set(p.player, p); });
+        for(const name of Array.from(alive)){
+          const p = byPlayer.get(name);
+          if(!p || p.status==='pending') continue; // still pending
+          if(p.status==='lose' || (p.status==='draw' && cfg.drawOut)) alive.delete(name);
+        }
+      }
+      return alive.size;
+    }
+
+    applySettingsBtn.addEventListener('click', ()=>{
+      if(!state.admin.unlocked){ alert('Unlock admin'); return; }
+      const cfg = currentConfig(); if(!cfg) return;
+      // draw/noRepeat
+      const val = settingsSelect.value;
+      if(val==='drawOut') cfg.drawOut = true; else if(val==='drawAlive') cfg.drawOut = false; else if(val==='noRepeatOn') cfg.noRepeat = true; else if(val==='noRepeatOff') cfg.noRepeat = false;
+      // round details
+      const r = cfg.rounds[cfg.currentRound] || (cfg.rounds[cfg.currentRound]={label:`GW${cfg.currentRound}`, deadlineISO:null});
+      r.label = roundLabelInput.value.trim() || `GW${cfg.currentRound}`;
+      const dl = deadlineInput.value; r.deadlineISO = dl? new Date(dl).toISOString(): null;
+      // fee
+      const fee = Number(entryFeeInput.value); if(isFinite(fee) && fee>=0) cfg.entryFee = fee; else alert('Invalid fee');
+      saveState();
+    })
+
+    function createNextRound(){
+      if(!state.admin.unlocked){ alert('Unlock admin'); return; }
+      const cfg = currentConfig(); if(!cfg) return;
+      const next = cfg.currentRound + 1;
+      if(!cfg.rounds[next]) cfg.rounds[next] = { label:`GW${next}`, deadlineISO:null };
+      saveState();
+    }
+    createNextRoundBtn.addEventListener('click', createNextRound);
+
+    function roundDeadlinePassed(m, r){
+      const cfg = state.configByMonth[m]; const rr = cfg?.rounds?.[r]; if(!rr||!rr.deadlineISO) return false;
+      return Date.now() > new Date(rr.deadlineISO).getTime();
+    }
+
+    function aliveSetAtRoundStart(m, r){
+      const cfg = state.configByMonth[m];
+      const entrants = new Set(state.picks.filter(p=>p.month===m && p.round===1).map(p=>p.player));
+      let alive = new Set(entrants);
+      for(let i=1;i<r;i++){
+        const picks = state.picks.filter(p=>p.month===m && p.round===i);
+        const byPlayer = new Map(); picks.forEach(p=>{ byPlayer.set(p.player, p); });
+        for(const name of Array.from(alive)){
+          const p = byPlayer.get(name);
+          if(!p || p.status==='pending') continue; // still pending
+          if(p.status==='lose' || (p.status==='draw' && cfg.drawOut)) alive.delete(name);
+        }
+      }
+      return alive;
+    }
+
+    function addPick(){
+      const player = playerInput.value.trim();
+      const month = monthInput.value;
+      const round = Number(roundInput.value||1);
+      const team = teamInput.value.trim();
+      const league = leagueInput.value || '';
+      const fixtureISO = fixtureInput.value ? new Date(fixtureInput.value).toISOString() : null;
+      const notes = notesInput.value.trim();
+
+      const cfg = currentConfig();
+      if(!player || !month || !team){ alert('Player, Month and Team are required.'); return; }
+      if(cfg?.closed){ alert('This month is closed.'); return; }
+      if(roundDeadlinePassed(month, round)){ alert('Deadline has passed for this round.'); return; }
+
+      // Round rules: new players allowed only in Round 1
+      if(round!==1){
+        const alivePrev = aliveSetAtRoundStart(month, round);
+        if(!alivePrev.has(player)){ alert(`${player} is not alive entering Round ${round}.`); return; }
+      }
+
+      // Prevent duplicate pick per player per round
+      if(state.picks.some(p=> p.player.toLowerCase()===player.toLowerCase() && p.month===month && p.round===round)){
+        alert(`${player} already has a pick for Round ${round}.`); return;
+      }
+      // No repeat team per month (optional)
+      if(cfg.noRepeat && state.picks.some(p=> p.player.toLowerCase()===player.toLowerCase() && p.month===month && p.team.toLowerCase()===team.toLowerCase())){
+        alert(`${player} has already used ${team} this month.`); return;
+      }
+
+      const pick = { id: uid(), player, month, round, team, league, fixtureISO, notes, status:'pending', alive:true };
+      state.picks.push(pick);
+      saveState();
+      playerInput.value=''; teamInput.value=''; notesInput.value='';
+    }
+    addPickBtn.addEventListener('click', addPick);
+
+    function renderPicksTable(){
+      const m = monthInput.value;
+      const rows = state.picks.filter(p=>p.month===m).sort((a,b)=> a.round-b.round || a.player.localeCompare(b.player));
+      picksBody.innerHTML='';
+      rows.forEach(p=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${esc(p.player)}</td>
+          <td>${esc(monthLabel(p.month))}</td>
+          <td>${p.round}</td>
+          <td>${esc(p.team)}</td>
+          <td>${esc(p.league||'')}</td>
+          <td>${p.fixtureISO? new Date(p.fixtureISO).toLocaleString(): ''}</td>
+          <td>${esc(p.notes||'')}</td>
+          <td>${statusChip(p)}</td>
+          <td class="adminCol ${state.admin.unlocked? '': 'hidden'}">${adminResultSelect(p)}</td>
+          <td class="adminCol ${state.admin.unlocked? '': 'hidden'}"><button data-del="${p.id}" class="ghost">Delete</button></td>
+        `;
+        picksBody.appendChild(tr);
+      })
+    }
+
+    function esc(s){ return (s||'').toString().replace(/[&<>\"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;','\'':'&#39;'}[m])) }
+    function statusChip(p){ const cls=p.status==='win'?'chip win':p.status==='lose'?'chip lose':p.status==='draw'?'chip pending':'chip pending'; const lab=p.status==='win'?'Win':p.status==='lose'?'Lose':p.status==='draw'?'Draw':'Pending'; return `<span class="${cls}">${lab}</span>`; }
+    function adminResultSelect(p){
+      return `<select data-res="${p.id}">
+        <option value="pending" ${p.status==='pending'?'selected':''}>Pending</option>
+        <option value="win" ${p.status==='win'?'selected':''}>Win</option>
+        <option value="lose" ${p.status==='lose'?'selected':''}>Lose</option>
+        <option value="draw" ${p.status==='draw'?'selected':''}>Draw</option>
+      </select>`;
+    }
+
+    document.addEventListener('change', (e)=>{
+      const sel = e.target.closest('select[data-res]');
+      if(sel){ if(!state.admin.unlocked){ alert('Unlock admin'); sel.value='pending'; return; }
+        const id = sel.getAttribute('data-res'); const p = state.picks.find(x=>x.id===id); if(!p) return; p.status = sel.value; saveState(); }
+    })
+
+    document.addEventListener('click', (e)=>{
+      const delBtn = e.target.closest('button[data-del]');
+      if(delBtn){ if(!state.admin.unlocked){ alert('Unlock admin'); return; } const id = delBtn.getAttribute('data-del'); state.picks = state.picks.filter(x=>x.id!==id); saveState(); }
+    })
+
+    function renderBoard(){
+      const m = monthInput.value; const cfg = currentConfig(); if(!cfg) return;
+      // Determine max rounds to render
+      const maxRound = Math.max(cfg.currentRound, ...Object.keys(cfg.rounds).map(Number), 1);
+      lanesEl.innerHTML = '';
+      for(let r=1;r<=maxRound;r++){
+        const lane = document.createElement('div'); lane.className='lane';
+        const rr = cfg.rounds[r] || {label:`GW${r}`, deadlineISO:null};
+        lane.innerHTML = `
+          <header><h3>${esc(rr.label||`GW${r}`)}</h3><div class="deadline">${rr.deadlineISO? `Deadline: ${new Date(rr.deadlineISO).toLocaleString()}`: 'No deadline'}</div></header>
+          <div class="section"><h4>Alive</h4><div class="list" data-list="alive"></div></div>
+          <div class="section"><h4>Pending</h4><div class="list" data-list="pending"></div></div>
+          <div class="section"><h4>Out</h4><div class="list" data-list="out"></div></div>
+        `;
+        // Compute players alive at start of r
+        const aliveStart = aliveSetAtRoundStart(m, r);
+        // Picks this round by alive players
+        const picks = state.picks.filter(p=>p.month===m && p.round===r);
+        const byPlayer = new Map(); picks.forEach(p=> byPlayer.set(p.player, p));
+        // Fill lists
+        const aliveList = lane.querySelector('[data-list="alive"]');
+        const pendingList = lane.querySelector('[data-list="pending"]');
+        const outList = lane.querySelector('[data-list="out"]');
+
+        Array.from(aliveStart).sort().forEach(name=>{
+          const p = byPlayer.get(name);
+          if(!p){ pendingList.appendChild(chip(name, null, 'pending', 'No pick')); return; }
+          if(p.status==='pending'){ pendingList.appendChild(chip(name, p.team, 'pending')); return; }
+          if(p.status==='win' || (p.status==='draw' && !cfg.drawOut)){ aliveList.appendChild(chip(name, p.team, 'win')); return; }
+          if(p.status==='lose' || (p.status==='draw' && cfg.drawOut)){ outList.appendChild(chip(name, p.team, 'lose')); return; }
+          pendingList.appendChild(chip(name, p.team, 'pending'));
+        })
+
+        lanesEl.appendChild(lane);
+      }
+    }
+
+    function chip(name, team, cls, extra){
+      const el = document.createElement('span'); el.className = `chip ${cls||''}`; el.innerHTML = `<span class="name">${esc(name)}</span>${team? `<span class="team">${esc(team)}</span>`:''}${extra? `<span class="muted">· ${esc(extra)}</span>`:''}`; return el;
+    }
+
+    function advanceRound(){
+      if(!state.admin.unlocked){ alert('Unlock admin'); return; }
+      const m = monthInput.value; const cfg = currentConfig(); const current = cfg.currentRound;
+      const picks = state.picks.filter(p=>p.month===m && p.round===current);
+      if(picks.length===0){ alert('No picks recorded in this round'); return; }
+      // Winner check & survivors
+      const aliveNow = new Set();
+      const entrants = Array.from(aliveSetAtRoundStart(m, current));
+      let anyResolved=false;
+      entrants.forEach(name=>{
+        const p = picks.find(x=>x.player===name);
+        if(!p){ return; } // no pick -> stays pending
+        if(p.status==='pending') return; else anyResolved=true;
+        if(p.status==='win' || (p.status==='draw' && !cfg.drawOut)) aliveNow.add(name);
+      });
+      if(!anyResolved){ alert('All results still pending'); return; }
+      if(aliveNow.size===1){ cfg.winner = Array.from(aliveNow)[0]; cfg.closed = true; saveState(); alert(`Winner: ${cfg.winner} (Pot £${potForMonth(m).toFixed(2)})`); return; }
+      // Progress
+      cfg.currentRound += 1;
+      if(!cfg.rounds[cfg.currentRound]) cfg.rounds[cfg.currentRound] = { label:`GW${cfg.currentRound}`, deadlineISO:null };
+      saveState();
+    }
+    advanceRoundBtn.addEventListener('click', advanceRound);
+
+    closeMonthBtn.addEventListener('click', ()=>{
+      if(!state.admin.unlocked){ alert('Unlock admin'); return; }
+      const cfg = currentConfig(); if(!cfg) return;
+      if(cfg.winner){ cfg.closed = true; saveState(); return; }
+      alert('No single winner detected. Resolve results or advance rounds.');
+    });
+
+    // Export / Import / Print
+    $('#exportBtn').addEventListener('click', ()=>{
+      const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='lms_state_swimlanes.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    })
+
+    $('#exportCsvBtn').addEventListener('click', ()=>{
+      const m = monthInput.value;
+      const rows = [[ 'Player','Month','Round','Team','League','Fixture','Notes','Status' ]];
+      state.picks.filter(p=>p.month===m).sort((a,b)=> a.round-b.round || a.player.localeCompare(b.player)).forEach(p=>{
+        rows.push([ p.player, monthLabel(p.month), String(p.round), p.team, p.league||'', p.fixtureISO? new Date(p.fixtureISO).toLocaleString(): '', (p.notes||'').replace(/\n/g,' '), p.status ]);
+      });
+      const csv = rows.map(r=> r.map(v=>{ const s=(v==null?'':String(v)); return /[",\n]/.test(s)? '"'+s.replace(/"/g,'""')+'"': s; }).join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download=`lms_${m}.csv`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    })
+
+    $('#importFile').addEventListener('change', (e)=>{
+      const file = e.target.files[0]; if(!file) return; const reader = new FileReader();
+      reader.onload = ()=>{ try{ const obj = JSON.parse(reader.result); state=obj; saveState(); alert('Imported.'); } catch(err){ alert('Invalid JSON'); console.error(err) } };
+      reader.readAsText(file);
+    })
+
+    $('#printBtn').addEventListener('click', ()=> window.print());
+
+    // Month change
+    monthInput.addEventListener('change', ()=>{ syncSettingsUi(); renderAll(); });
+    roundInput.addEventListener('change', ()=>{ /* Only used for adding picks into a round */ });
+
+    function renderAll(){ renderPicksTable(); renderBoard(); }
+
+    function init(){
+      // Build month select
+      monthInput.innerHTML=''; state.months.forEach(m=>{ const o=document.createElement('option'); o.value=m; o.textContent=monthLabel(m); monthInput.appendChild(o); });
+      if(!monthInput.value && state.months.length) monthInput.value=state.months[0];
+      syncAdminControls(); syncSettingsUi(); renderAll();
+    }
+
+    // Add/Delete month
+    $('#addMonthBtn').addEventListener('click', addMonth);
+    $('#deleteMonthBtn').addEventListener('click', deleteMonth);
+
+    // Admin controls
+    $('#applySettingsBtn').addEventListener('click', ()=>{}); // already bound above
+
+    init();
+
+    // Utility
+    function esc(s){ return (s||'').toString().replace(/[&<>\"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;','\'':'&#39;'}[m])); }
+  </script>
+</body>
+</html>

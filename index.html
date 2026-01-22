@@ -1,0 +1,37 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>LMS – Picks Portal</title>
+  <style>
+    :root{ --bg:#0f172a; --card:#111827; --text:#e5e7eb; --muted:#94a3b8; --accent:#22c55e; --border:#334155 }
+    html,body{height:100%}
+    body{margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:linear-gradient(180deg,var(--bg),#030712 60%); color:var(--text); display:grid; place-items:center}
+    .wrap{max-width:900px; padding:24px;}
+    .card{background:linear-gradient(180deg,#1f2937,#111827); border:1px solid var(--border); border-radius:16px; padding:24px}
+    h1{margin:0 0 8px; font-size:clamp(22px,3.5vw,34px)}
+    p{color:var(--muted); margin:8px 0 16px}
+    .row{display:flex; gap:12px; flex-wrap:wrap}
+    a.btn{display:inline-flex; align-items:center; gap:8px; padding:12px 16px; border-radius:12px; text-decoration:none; font-weight:700}
+    .primary{background:linear-gradient(90deg,var(--accent),#16a34a); color:#052e16}
+    .ghost{border:1px solid var(--border); color:var(--text)}
+    .note{margin-top:12px; font-size:12px; color:var(--muted)}
+    code{background:#0b1220; padding:2px 6px; border-radius:6px; border:1px solid var(--border)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Last Man Standing</h1>
+      <p>Monthly LMS manager with <strong>swimlanes</strong> per round to visualize <em>Alive / Pending / Out</em> players. Data lives in your browser (<code>localStorage</code>).</p>
+      <div class="row">
+        <a class="btn primary" href="./lms_picks.html" title="Open the picks manager">Enter Picks</a>
+        <a class="btn ghost" href="./lms_picks.html#read-only" title="Open in view mode (hide admin controls)">Public View</a>
+      </div>
+      <p class="note">To publish on GitHub Pages: Settings → Pages → Deploy from branch → main / (root).</p>
+    </div>
+  </div>
+</body>
+</html>
